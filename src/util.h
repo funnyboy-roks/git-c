@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <zlib.h>
+#include <assert.h>
 
 typedef Byte u8;
 
@@ -11,20 +12,15 @@ typedef Byte u8;
 
 #ifndef RELEASE
 #define DBG(...) _PRINT_MSG("[DBG]", __VA_ARGS__)
+#else // RELEASE
+#define DBG(...) 0;
+#endif
 #define PANIC(...) do {                           \
     _PRINT_MSG("[PANIC]", __VA_ARGS__);           \
     exit(1);                                      \
 } while (0);
-#else // RELEASE
-#define DBG(...) 0;
-#define PANIC(...) do {                     \
-    fprintf(stderr, "[PANIC] "__VA_ARGS__); \
-    fprintf(stderr, "\n");                  \
-    exit(1);                                \
-} while (0);
-#endif
 
-#define nob_da_append(da, item)                                                      \
+#define da_append(da, item)                                                          \
     do {                                                                             \
         if ((da)->count >= (da)->capacity) {                                         \
             (da)->capacity = (da)->capacity == 0 ? 1024 : (da)->capacity*2;          \
@@ -40,6 +36,9 @@ typedef struct {
     size_t count;
     size_t capacity;
 } String;
+
+void string_extend(String *dst, String src);
+void string_extend_cstr(String *dst, char *src);
 
 void hash(String s, u8 hash[20]);
 void encode_hex(u8 hash[20], char hex[41]);

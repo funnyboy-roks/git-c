@@ -6,8 +6,26 @@
 
 #include "util.h"
 
+void string_extend(String *dst, String src) {
+    if (dst->count + src.count > dst->capacity) {
+        dst->items = realloc(dst->items, dst->count + src.count);
+        dst->capacity = dst->count + src.count;
+    }
+    memcpy(dst->items + dst->count, src.items, src.count);
+    dst->count += src.count;
+}
+
+void string_extend_cstr(String *dst, char *src) {
+    size_t len = strlen(src);
+    String s = {
+        .items = src,
+        .count = len,
+        .capacity = len,
+    };
+    string_extend(dst, s);
+}
+
 String read_entire_file(const char *path) {
-    String s = { 0 };
     FILE *f = fopen(path, "rb");
     if (f == NULL)                 PANIC("Cannot open for reading %s: %m", path);
     if (fseek(f, 0, SEEK_END) < 0) PANIC("seek failed: %m");
@@ -15,16 +33,15 @@ String read_entire_file(const char *path) {
     if (m < 0)                     PANIC("m < 0: %m");
     if (fseek(f, 0, SEEK_SET) < 0) PANIC("seek failed: %m");
 
-    size_t new_count = s.count + m;
-    if (new_count > s.capacity) {
-        s.items = realloc(s.items, new_count);
-        assert(s.items != NULL && "Buy more RAM lool!!");
-        s.capacity = new_count;
-    }
+    String s = {
+        .items = malloc(m),
+        .capacity = m,
+        .count = 0,
+    };
 
-    fread(s.items + s.count, m, 1, f);
+    fread(s.items, m, 1, f);
     if (ferror(f)) PANIC("Cannot read file %s: %m", path);
-    s.count = new_count;
+    s.count = m;
 
     return s;
 }
@@ -69,8 +86,6 @@ String decomp(String content) {
         d_stream.next_out = buf;
         d_stream.avail_out = BUF_SIZE;
 
-        DBG("a");
-
         int err = inflate(&d_stream, Z_NO_FLUSH);
         if (err != Z_STREAM_END && err != Z_OK) PANIC("inflate");
 
@@ -102,15 +117,10 @@ void comp(FILE *out, String content) {
 
     if (deflateInit(&c_stream, Z_DEFAULT_COMPRESSION) != Z_OK) PANIC("deflateInit");
 
-    DBG("d_stream.total_in = %ld", c_stream.total_in);
-    DBG("d_stream.avail_in = %d", c_stream.avail_in);
-    DBG("content.count = %ld", content.count);
-
     u8 buf[BUF_SIZE] = { 0 };
     do {
         c_stream.avail_out = BUF_SIZE;
         c_stream.next_out = buf;
-        DBG("a");
         int err = deflate(&c_stream, Z_NO_FLUSH);
         if (err == Z_STREAM_ERROR) PANIC("deflate error (%d)", err)
         size_t have = BUF_SIZE - c_stream.avail_out;
